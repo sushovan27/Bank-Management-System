@@ -14,18 +14,23 @@ A simple console-based banking system written in Python to practice Object-Orien
 7. **Transfer Funds**: Move money seamlessly across accounts with transactional integrity.
 
 ## Prerequisites & How to Run
-This project uses the `rich` library for an advanced UI experience.
+This project uses the `rich` library for the CLI UI and `streamlit` for the Web UI.
 
 1. Install requirements:
 ```bash
-pip install rich
+pip install rich streamlit pandas
 ```
 
-2. Navigate to the `bank_system` directory and execute `main.py`:
-
+2. To run the Terminal CLI Application:
 ```bash
 cd bank_system
 python main.py
+```
+
+3. To run the Web UI Application:
+```bash
+cd bank_system
+streamlit run app.py
 ```
 
 ## Data Storage
