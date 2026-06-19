@@ -1,107 +1,120 @@
 import os
 import json
+import csv
+import getpass
+from datetime import datetime
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich import print as rprint
+from rich.prompt import Prompt
+from rich.align import Align
+from rich.text import Text
+
 from models.customer import Customer
-from models.account import SavingsAccount, CurrentAccount
+from models.account import SavingsAccount, CurrentAccount, hash_pin
 from models.transaction import Transaction, TransactionType
 
 # Ensure data directory exists
 os.makedirs("data", exist_ok=True)
 
-# File to store all accounts
 DATA_FILE = "data/accounts.json"
 TRANSACTIONS_FILE = "data/transactions.json"
 
+console = Console()
 
 def display_logo():
-    print("""
+    logo = """
     ███████╗██╗   ██╗███████╗██╗  ██╗ ██████╗ ██╗   ██╗ █████╗ ███╗   ██╗
     ██╔════╝██║   ██║██╔════╝██║  ██║██╔═══██╗██║   ██║██╔══██╗████╗  ██║
     ███████╗██║   ██║███████╗███████║██║   ██║██║   ██║███████║██╔██╗ ██║
     ╚════██║██║   ██║╚════██║██╔══██║██║   ██║╚██╗ ██╔╝██╔══██║██║╚██╗██║
     ███████║╚██████╔╝███████║██║  ██║╚██████╔╝ ╚████╔╝ ██║  ██║██║ ╚████║
     ╚══════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝╚═╝  ╚═══╝
-
-    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    💰  SECURE  •  TRUSTED  •  RELIABLE  💰
-    $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-    """)
+    """
+    tagline = Text("💰  SECURE  •  TRUSTED  •  RELIABLE  💰", style="bold green")
+    panel = Panel(Align.center(Text(logo, style="bold cyan") + "\n" + tagline), title="[bold yellow]Welcome to NextGen Banking[/bold yellow]", border_style="cyan")
+    console.print(panel)
 
 
 def load_accounts():
-    """Load accounts from JSON file. Returns empty list if file doesn't exist."""
     try:
         with open(DATA_FILE, 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-
 def save_accounts(accounts):
-    """Save accounts list to JSON file."""
     with open(DATA_FILE, 'w') as f:
         json.dump(accounts, f, indent=4)
 
-
 def load_transactions():
-    """Load transactions from JSON file. Returns empty list if file doesn't exist."""
     try:
         with open(TRANSACTIONS_FILE, 'r') as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
-
 def save_transactions(transactions):
-    """Save transactions list to JSON file."""
     with open(TRANSACTIONS_FILE, 'w') as f:
         json.dump(transactions, f, indent=4)
 
+def authenticate(account_num, accounts):
+    """Returns the account dict if authenticated, else None."""
+    acc = next((a for a in accounts if a["account_number"] == account_num), None)
+    if not acc:
+        console.print("[bold red]❌ Account not found.[/bold red]")
+        return None
+    
+    pin = getpass.getpass("Enter 4-digit PIN: ")
+    if acc.get("pin_hash") == hash_pin(pin):
+        return acc
+    else:
+        console.print("[bold red]❌ Incorrect PIN.[/bold red]")
+        return None
 
 def create_account():
-    print("\n--- CREATE NEW ACCOUNT ---")
+    console.print(Panel("[bold green]--- CREATE NEW ACCOUNT ---[/bold green]"))
+    name = Prompt.ask("Enter Full Name")
+    phone = Prompt.ask("Enter Phone Number")
+    email = Prompt.ask("Enter Email")
+    address = Prompt.ask("Enter Address (optional)")
 
-    # Get customer details
-    name = input("Enter Full Name: ")
-    phone = input("Enter Phone Number: ")
-    email = input("Enter Email: ")
-    address = input("Enter Address (optional): ")
+    console.print("\n[bold cyan]Account Types:[/bold cyan]")
+    console.print("1. Savings (Minimum balance: ₹100, 4% Interest)")
+    console.print("2. Current (Overdraft up to ₹500)")
+    acc_type = Prompt.ask("Choose account type", choices=["1", "2"])
 
-    # Get account type
-    print("\nAccount Types:")
-    print("1. Savings (Minimum balance: ₹100)")
-    print("2. Current (Overdraft up to ₹500)")
-    acc_type = input("Choose account type (1 or 2): ")
+    while True:
+        pin = getpass.getpass("Set a 4-digit PIN: ")
+        pin2 = getpass.getpass("Confirm PIN: ")
+        if pin == pin2 and len(pin) >= 4:
+            break
+        console.print("[bold red]❌ PINs do not match or too short. Try again.[/bold red]")
 
-    # Get initial deposit
     try:
-        initial_deposit = float(input("Enter Initial Deposit Amount: ₹"))
+        initial_deposit = float(Prompt.ask("Enter Initial Deposit Amount (₹)"))
     except ValueError:
-        print("❌ Invalid amount. Please enter a number.")
+        console.print("[bold red]❌ Invalid amount.[/bold red]")
         return
 
-    # Create the objects
     customer = Customer(name, phone, email, address)
 
     if acc_type == "1":
-        account = SavingsAccount(customer_id=customer.name, initial_deposit=initial_deposit)
+        account = SavingsAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
         if initial_deposit < 100:
-            print("❌ Savings account requires a minimum deposit of ₹100.")
+            console.print("[bold red]❌ Savings account requires a minimum deposit of ₹100.[/bold red]")
             return
-    elif acc_type == "2":
-        account = CurrentAccount(customer_id=customer.name, initial_deposit=initial_deposit)
     else:
-        print("❌ Invalid account type.")
-        return
+        account = CurrentAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
 
-    # Combine data and save
     account_data = account.to_dict()
-    account_data["customer"] = customer.to_dict()  # Embed customer inside account
+    account_data["customer"] = customer.to_dict()
 
     accounts = load_accounts()
     accounts.append(account_data)
     save_accounts(accounts)
 
-    # Log transaction
     txn = Transaction(
         account_number=account.account_number,
         transaction_type=TransactionType.OPENING_DEPOSIT,
@@ -113,232 +126,194 @@ def create_account():
     transactions.append(txn.to_dict())
     save_transactions(transactions)
 
-    print("\n✅ ACCOUNT CREATED SUCCESSFULLY!")
-    print(f"📌 Account Number: {account.account_number}")
-    print(f"💰 Current Balance: ₹{account.balance}")
-    print(f"📅 Opening Date: {account.opening_date}")
+    success_panel = Panel(f"[bold green]✅ ACCOUNT CREATED SUCCESSFULLY![/bold green]\n"
+                          f"📌 Account Number: [bold cyan]{account.account_number}[/bold cyan]\n"
+                          f"💰 Current Balance: [bold green]₹{account.balance}[/bold green]\n"
+                          f"📅 Opening Date: {account.opening_date}")
+    console.print(success_panel)
 
 
 def check_balance():
-    print("\n--- CHECK BALANCE ---")
-    acc_num = input("Enter your Account Number: ")
-
+    console.print("\n[bold blue]--- CHECK BALANCE ---[/bold blue]")
+    acc_num = Prompt.ask("Enter your Account Number")
     accounts = load_accounts()
+    
+    acc = authenticate(acc_num, accounts)
+    if acc:
+        table = Table(title="Account Details", show_header=True, header_style="bold magenta")
+        table.add_column("Attribute", style="dim", width=20)
+        table.add_column("Value")
+        
+        table.add_row("Customer", acc['customer']['name'])
+        table.add_row("Account Type", acc['account_type'])
+        table.add_row("Current Balance", f"[bold green]₹{acc['balance']:,.2f}[/bold green]")
+        table.add_row("Opened on", acc['opening_date'])
+        
+        console.print(table)
 
-    for acc in accounts:
-        if acc["account_number"] == acc_num:
-            print("\n✅ ACCOUNT FOUND")
-            print(f"👤 Customer: {acc['customer']['name']}")
-            print(f"🏦 Account Type: {acc['account_type']}")
-            print(f"💰 Current Balance: ₹{acc['balance']}")
-            print(f"📅 Opened on: {acc['opening_date']}")
-            return
-
-    print("❌ Account not found. Please check the account number.")
 
 def deposit():
-    print("\n--- DEPOSIT MONEY ---")
-    acc_num = input("Enter your Account Number: ")
+    console.print("\n[bold blue]--- DEPOSIT MONEY ---[/bold blue]")
+    acc_num = Prompt.ask("Enter your Account Number")
+    accounts = load_accounts()
+    
+    acc = authenticate(acc_num, accounts)
+    if not acc: return
 
     try:
-        amount = float(input("Enter amount to deposit: ₹"))
-        if amount <= 0:
-            print("❌ Amount must be greater than zero.")
-            return
+        amount = float(Prompt.ask("Enter amount to deposit (₹)"))
+        if amount <= 0: raise ValueError
     except ValueError:
-        print("❌ Invalid amount. Please enter a number.")
+        console.print("[bold red]❌ Invalid amount.[/bold red]")
         return
 
-    accounts = load_accounts()
+    acc["balance"] += amount
+    save_accounts(accounts)
 
-    for acc in accounts:
-        if acc["account_number"] == acc_num:
-            # Update the balance
-            acc["balance"] += amount
+    txn = Transaction(account_number=acc_num, transaction_type=TransactionType.DEPOSIT,
+                      amount=amount, balance_after=acc["balance"], description="Cash deposit")
+    transactions = load_transactions()
+    transactions.append(txn.to_dict())
+    save_transactions(transactions)
 
-            # Save back to file
-            save_accounts(accounts)
-
-            # Log transaction
-            txn = Transaction(
-                account_number=acc_num,
-                transaction_type=TransactionType.DEPOSIT,
-                amount=amount,
-                balance_after=acc["balance"],
-                description="Cash deposit"
-            )
-            transactions = load_transactions()
-            transactions.append(txn.to_dict())
-            save_transactions(transactions)
-
-            print("\n✅ DEPOSIT SUCCESSFUL!")
-            print(f"💰 New Balance: ₹{acc['balance']}")
-            return
-
-    print("❌ Account not found. Please check the account number.")
+    console.print(f"[bold green]✅ DEPOSIT SUCCESSFUL! New Balance: ₹{acc['balance']:,.2f}[/bold green]")
 
 
 def withdraw():
-    print("\n--- WITHDRAW MONEY ---")
-    acc_num = input("Enter your Account Number: ")
+    console.print("\n[bold blue]--- WITHDRAW MONEY ---[/bold blue]")
+    acc_num = Prompt.ask("Enter your Account Number")
+    accounts = load_accounts()
+    
+    acc = authenticate(acc_num, accounts)
+    if not acc: return
 
     try:
-        amount = float(input("Enter amount to withdraw: ₹"))
-        if amount <= 0:
-            print("❌ Amount must be greater than zero.")
-            return
+        amount = float(Prompt.ask("Enter amount to withdraw (₹)"))
+        if amount <= 0: raise ValueError
     except ValueError:
-        print("❌ Invalid amount. Please enter a number.")
+        console.print("[bold red]❌ Invalid amount.[/bold red]")
         return
 
-    accounts = load_accounts()
-
-    for acc in accounts:
-        if acc["account_number"] == acc_num:
-            # Check if it's a Savings Account with minimum balance
-            if acc["account_type"] == "SavingsAccount":
-                min_balance = 100.0
-                if acc["balance"] - amount < min_balance:
-                    print(f"❌ Cannot withdraw. Savings account must maintain a minimum balance of ₹{min_balance}.")
-                    print(f"   Current balance: ₹{acc['balance']}")
-                    print(f"   Maximum withdrawable: ₹{acc['balance'] - min_balance}")
-                    return
-
-            # Check regular sufficient balance
-            if acc["balance"] < amount:
-                print(f"❌ Insufficient balance. Current balance: ₹{acc['balance']}")
-                return
-
-            # Perform the withdrawal
-            acc["balance"] -= amount
-            save_accounts(accounts)
-
-            # Log transaction
-            txn = Transaction(
-                account_number=acc_num,
-                transaction_type=TransactionType.WITHDRAWAL,
-                amount=amount,
-                balance_after=acc["balance"],
-                description="Cash withdrawal"
-            )
-            transactions = load_transactions()
-            transactions.append(txn.to_dict())
-            save_transactions(transactions)
-
-            print("\n✅ WITHDRAWAL SUCCESSFUL!")
-            print(f"💰 New Balance: ₹{acc['balance']}")
+    if acc["account_type"] == "SavingsAccount":
+        if acc["balance"] - amount < 100.0:
+            console.print(f"[bold red]❌ Cannot withdraw. Minimum balance of ₹100 required.[/bold red]")
+            return
+    else:
+        if acc["balance"] - amount < -500.0:
+            console.print(f"[bold red]❌ Insufficient balance. Overdraft limit exceeded.[/bold red]")
             return
 
-    print("❌ Account not found. Please check the account number.")
+    acc["balance"] -= amount
+    save_accounts(accounts)
+
+    txn = Transaction(account_number=acc_num, transaction_type=TransactionType.WITHDRAWAL,
+                      amount=amount, balance_after=acc["balance"], description="Cash withdrawal")
+    transactions = load_transactions()
+    transactions.append(txn.to_dict())
+    save_transactions(transactions)
+
+    console.print(f"[bold green]✅ WITHDRAWAL SUCCESSFUL! New Balance: ₹{acc['balance']:,.2f}[/bold green]")
 
 
 def transfer():
-    print("\n--- TRANSFER FUNDS ---")
-    sender_acc_num = input("Enter your Account Number (Sender): ")
-    receiver_acc_num = input("Enter receiver's Account Number: ")
+    console.print("\n[bold blue]--- TRANSFER FUNDS ---[/bold blue]")
+    sender_acc_num = Prompt.ask("Enter your Account Number (Sender)")
+    accounts = load_accounts()
+    
+    sender = authenticate(sender_acc_num, accounts)
+    if not sender: return
 
+    receiver_acc_num = Prompt.ask("Enter receiver's Account Number")
     if sender_acc_num == receiver_acc_num:
-        print("❌ Cannot transfer to the same account.")
+        console.print("[bold red]❌ Cannot transfer to the same account.[/bold red]")
+        return
+        
+    receiver = next((a for a in accounts if a["account_number"] == receiver_acc_num), None)
+    if not receiver:
+        console.print("[bold red]❌ Receiver account not found.[/bold red]")
         return
 
     try:
-        amount = float(input("Enter amount to transfer: ₹"))
-        if amount <= 0:
-            print("❌ Amount must be greater than zero.")
-            return
+        amount = float(Prompt.ask("Enter amount to transfer (₹)"))
+        if amount <= 0: raise ValueError
     except ValueError:
-        print("❌ Invalid amount. Please enter a number.")
+        console.print("[bold red]❌ Invalid amount.[/bold red]")
         return
 
-    accounts = load_accounts()
-    
-    sender = next((acc for acc in accounts if acc["account_number"] == sender_acc_num), None)
-    receiver = next((acc for acc in accounts if acc["account_number"] == receiver_acc_num), None)
-
-    if not sender:
-        print("❌ Sender account not found.")
+    if sender["account_type"] == "SavingsAccount" and sender["balance"] - amount < 100.0:
+        console.print("[bold red]❌ Transfer failed. Savings minimum balance rule.[/bold red]")
         return
-    if not receiver:
-        print("❌ Receiver account not found.")
+    elif sender["account_type"] == "CurrentAccount" and sender["balance"] - amount < -500.0:
+        console.print("[bold red]❌ Transfer failed. Overdraft limit exceeded.[/bold red]")
         return
 
-    # Check sender balance based on account type
-    if sender["account_type"] == "SavingsAccount":
-        if sender["balance"] - amount < 100.0:
-            print("❌ Transfer failed. Savings account must maintain a minimum balance of ₹100.0.")
-            return
-    else: # CurrentAccount
-        if sender["balance"] - amount < -500.0:
-            print("❌ Transfer failed. Overdraft limit exceeded.")
-            return
-
-    # Perform transfer
     sender["balance"] -= amount
     receiver["balance"] += amount
     save_accounts(accounts)
 
-    # Log transactions
     transactions = load_transactions()
-    
-    # Sender transaction
-    txn_out = Transaction(
-        account_number=sender_acc_num,
-        transaction_type=TransactionType.TRANSFER_SENT,
-        amount=amount,
-        balance_after=sender["balance"],
-        description=f"Transfer to {receiver_acc_num}",
-        related_account=receiver_acc_num
-    )
-    transactions.append(txn_out.to_dict())
-
-    # Receiver transaction
-    txn_in = Transaction(
-        account_number=receiver_acc_num,
-        transaction_type=TransactionType.TRANSFER_RECEIVED,
-        amount=amount,
-        balance_after=receiver["balance"],
-        description=f"Transfer from {sender_acc_num}",
-        related_account=sender_acc_num
-    )
-    transactions.append(txn_in.to_dict())
-
+    transactions.append(Transaction(sender_acc_num, TransactionType.TRANSFER_SENT, amount, sender["balance"], description=f"To {receiver_acc_num}", related_account=receiver_acc_num).to_dict())
+    transactions.append(Transaction(receiver_acc_num, TransactionType.TRANSFER_RECEIVED, amount, receiver["balance"], description=f"From {sender_acc_num}", related_account=sender_acc_num).to_dict())
     save_transactions(transactions)
 
-    print("\n✅ TRANSFER SUCCESSFUL!")
-    print(f"💰 Your New Balance: ₹{sender['balance']}")
+    console.print(f"[bold green]✅ TRANSFER SUCCESSFUL! Your New Balance: ₹{sender['balance']:,.2f}[/bold green]")
+
+def apply_interest():
+    console.print("\n[bold blue]--- APPLY INTEREST (Admin) ---[/bold blue]")
+    accounts = load_accounts()
+    transactions = load_transactions()
+    count = 0
+    
+    for acc in accounts:
+        if acc["account_type"] == "SavingsAccount":
+            interest = acc["balance"] * 0.04
+            acc["balance"] += interest
+            count += 1
+            transactions.append(Transaction(acc["account_number"], TransactionType.INTEREST, interest, acc["balance"], description="Annual Interest 4%").to_dict())
+            
+    save_accounts(accounts)
+    save_transactions(transactions)
+    console.print(f"[bold green]✅ Applied 4% interest to {count} Savings Account(s).[/bold green]")
 
 
 def transaction_history():
-    print("\n--- TRANSACTION HISTORY ---")
-    acc_num = input("Enter your Account Number: ")
-
+    console.print("\n[bold blue]--- TRANSACTION HISTORY ---[/bold blue]")
+    acc_num = Prompt.ask("Enter your Account Number")
     accounts = load_accounts()
-    if not any(acc["account_number"] == acc_num for acc in accounts):
-        print("❌ Account not found.")
-        return
+    
+    acc = authenticate(acc_num, accounts)
+    if not acc: return
 
     transactions = load_transactions()
     acc_txns = [txn for txn in transactions if txn["account_number"] == acc_num]
 
     if not acc_txns:
-        print("No transactions found for this account.")
+        console.print("[bold yellow]No transactions found for this account.[/bold yellow]")
         return
 
-    print(f"\nTransaction History for Account: {acc_num}")
-    print("-" * 75)
-    print(f"{'Date & Time':<22} | {'Type':<18} | {'Amount':<12} | {'Balance':<12}")
-    print("-" * 75)
-    
+    table = Table(title=f"Transaction History: {acc_num}", header_style="bold cyan")
+    table.add_column("Date & Time", justify="center")
+    table.add_column("Type", justify="center")
+    table.add_column("Amount", justify="right")
+    table.add_column("Balance", justify="right")
+
     for txn_data in acc_txns:
         txn = Transaction.from_dict(txn_data)
-        # Assuming transaction format: [2023-01-01 12:00:00] TYPE +₹100 | Bal: ₹500
-        # Instead, I'll print manually to make it tabular
-        
-        type_symbol = "+" if txn.transaction_type in (TransactionType.DEPOSIT, TransactionType.OPENING_DEPOSIT, TransactionType.TRANSFER_RECEIVED, TransactionType.INTEREST) else "-"
-        
-        print(f"{txn.timestamp:<22} | {txn.transaction_type.value.upper():<18} | {type_symbol}₹{txn.amount:<10.2f} | ₹{txn.balance_after:<10.2f}")
+        color = "green" if txn.transaction_type in (TransactionType.DEPOSIT, TransactionType.OPENING_DEPOSIT, TransactionType.TRANSFER_RECEIVED, TransactionType.INTEREST) else "red"
+        symbol = "+" if color == "green" else "-"
+        table.add_row(txn.timestamp, txn.transaction_type.value.upper(), f"[{color}]{symbol}₹{txn.amount:,.2f}[/{color}]", f"₹{txn.balance_after:,.2f}")
     
-    print("-" * 75)
+    console.print(table)
+    
+    if Prompt.ask("Export Statement to CSV?", choices=["y", "n"], default="n") == "y":
+        filename = f"statement_{acc_num}_{datetime.now().strftime('%Y%m%d%H%M')}.csv"
+        filepath = os.path.join("data", filename)
+        with open(filepath, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Date", "Transaction ID", "Type", "Amount", "Balance After", "Description"])
+            for t in acc_txns:
+                writer.writerow([t["timestamp"], t["transaction_id"], t["transaction_type"], t["amount"], t["balance_after"], t["description"]])
+        console.print(f"[bold green]✅ Statement exported to {filepath}[/bold green]")
 
 
 def main():
@@ -346,40 +321,37 @@ def main():
         os.system('cls' if os.name == 'nt' else 'clear')
         display_logo()
 
-        print("\n1. Create New Account")
-        print("2. Deposit")
-        print("3. Withdraw")
-        print("4. Transfer Funds")
-        print("5. Check Balance")
-        print("6. Transaction History")
-        print("7. Exit")
+        console.print("\n[bold]Main Menu[/bold]")
+        console.print("1. [cyan]Create New Account[/cyan]")
+        console.print("2. [cyan]Deposit[/cyan]")
+        console.print("3. [cyan]Withdraw[/cyan]")
+        console.print("4. [cyan]Transfer Funds[/cyan]")
+        console.print("5. [cyan]Check Balance[/cyan]")
+        console.print("6. [cyan]Transaction History & Export[/cyan]")
+        console.print("7. [magenta]Admin: Apply Interest (Savings)[/magenta]")
+        console.print("8. [red]Exit[/red]")
 
-        choice = input("\n👉 Enter your choice: ")
+        choice = Prompt.ask("\n👉 Enter your choice", choices=[str(i) for i in range(1, 9)])
 
         if choice == "1":
             create_account()
-            input("\nPress Enter to continue...")
         elif choice == "2":
             deposit()
-            input("\nPress Enter to continue...")
         elif choice == "3":
             withdraw()
-            input("\nPress Enter to continue...")
         elif choice == "4":
             transfer()
-            input("\nPress Enter to continue...")
         elif choice == "5":
             check_balance()
-            input("\nPress Enter to continue...")
         elif choice == "6":
             transaction_history()
-            input("\nPress Enter to continue...")
         elif choice == "7":
-            print("\nThank you for banking with Sushovan! 🏦")
+            apply_interest()
+        elif choice == "8":
+            console.print("\n[bold green]Thank you for banking with NextGen! 🏦[/bold green]")
             break
-        else:
-            print("❌ Invalid choice. Please try again.")
-            input("\nPress Enter to continue...")
+            
+        input("\nPress Enter to continue...")
 
 if __name__ == "__main__":
     main()

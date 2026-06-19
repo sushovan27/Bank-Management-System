@@ -3,21 +3,25 @@
 A simple console-based banking system written in Python to practice Object-Oriented Programming (OOP) and File I/O.
 
 ## Features Included
-1. **Create Account**: Open a Savings or Current account.
-2. **Deposit**: Add money to your account.
-3. **Withdraw**: Take money out, with account-specific rules (minimum balance for savings, overdraft for current).
-4. **Transfer Funds**: Move money between two accounts.
-5. **Check Balance**: View current balance and account details.
-6. **Transaction History**: View full history of deposits, withdrawals, and transfers with timestamps.
+1. **Flashy Terminal UI**: Powered by the `rich` library, featuring styled tables, colored panels, and a sleek logo layout.
+2. **PIN Authentication**: Secure your account! Creating an account requires setting a 4-digit PIN. Deposits, withdrawals, and history checks are protected by SHA-256 hashed PINs.
+3. **Advanced Transaction History**:
+    - Print detailed, color-coded, tabular transaction logs.
+    - **Export Statements**: Automatically generate and export account statements to CSV format.
+4. **Apply Interest (Admin)**: Apply a configurable interest rate (e.g., 4%) to all Savings accounts in bulk.
+5. **Create Account**: Open a Savings or Current account.
+6. **Deposit & Withdraw**: Robust rule validation including overdraft and minimum balance protection.
+7. **Transfer Funds**: Move money seamlessly across accounts with transactional integrity.
 
-## Project Structure
-- `bank_system/main.py`: Entry point and main CLI application.
-- `bank_system/models/`: Contains data models (`Account`, `Customer`, `Transaction`).
-- `bank_system/services/`: Directory for extracting business logic (extensible).
-- `data/`: Auto-generated folder containing JSON storage for accounts and transactions.
+## Prerequisites & How to Run
+This project uses the `rich` library for an advanced UI experience.
 
-## How to Run
-Navigate to the `bank_system` directory and execute `main.py`:
+1. Install requirements:
+```bash
+pip install rich
+```
+
+2. Navigate to the `bank_system` directory and execute `main.py`:
 
 ```bash
 cd bank_system
