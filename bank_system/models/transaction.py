@@ -63,8 +63,6 @@ class Transaction:
         """Validate transaction data after initialization."""
         if self.amount <= 0:
             raise ValueError("Transaction amount must be positive")
-        if self.balance_after < 0:
-            raise ValueError("Balance after transaction cannot be negative")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert transaction to dictionary for JSON serialization."""
