@@ -52,20 +52,23 @@ st.markdown("💰 **SECURE • TRUSTED • RELIABLE** 💰")
 st.divider()
 
 # --- SIDEBAR NAVIGATION ---
-st.sidebar.title("Navigation")
+st.sidebar.title("🧭 Navigation")
 menu = st.sidebar.radio("Go to:", [
-    "Home", 
-    "Create Account", 
-    "Check Balance", 
-    "Deposit", 
-    "Withdraw", 
-    "Transfer Funds", 
-    "Transaction History",
-    "Admin Controls"
+    "🏠 Home", 
+    "📝 Create Account", 
+    "💳 Check Balance", 
+    "📥 Deposit", 
+    "📤 Withdraw", 
+    "🔄 Transfer Funds", 
+    "📜 Transaction History",
+    "⚙️ Admin Controls"
 ])
 
+# Remove emojis for exact string matching in logic
+menu_choice = menu.split(" ", 1)[1] if " " in menu else menu
+
 # --- HOME ---
-if menu == "Home":
+if menu_choice == "Home":
     st.markdown("## Welcome to the Future of Banking 🚀")
     st.markdown("Manage your finances seamlessly with **NextGen Banking System**. Explore the global dashboard below.")
     st.divider()
@@ -139,67 +142,87 @@ if menu == "Home":
         st.write("No recent activity.")
 
 # --- CREATE ACCOUNT ---
-elif menu == "Create Account":
+elif menu_choice == "Create Account":
     st.subheader("📝 Create New Account")
     
-    with st.form("create_account_form"):
-        name = st.text_input("Full Name*")
-        phone = st.text_input("Phone Number*")
-        email = st.text_input("Email*")
-        address = st.text_area("Address (optional)")
-        
-        acc_type = st.selectbox("Account Type", ["Savings (Min ₹100, 4% Interest)", "Current (Overdraft up to ₹500)"])
-        
+    with st.form("create_account_form", clear_on_submit=True):
+        st.markdown("##### Customer Details")
         col1, col2 = st.columns(2)
         with col1:
-            pin = st.text_input("Set 4-digit PIN*", type="password", max_chars=4)
+            name = st.text_input("Full Name*")
+            email = st.text_input("Email*")
         with col2:
+            phone = st.text_input("Phone Number*")
+            address = st.text_area("Address (optional)", height=68)
+        
+        st.divider()
+        st.markdown("##### Account Setup")
+        acc_type = st.selectbox("Account Type*", ["Savings (Min ₹100, 4% Interest)", "Current (Overdraft up to ₹500)"])
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            pin = st.text_input("Set 4-digit PIN*", type="password", max_chars=4, help="Must be exactly 4 digits")
+        with col4:
             pin2 = st.text_input("Confirm PIN*", type="password", max_chars=4)
             
-        initial_deposit = st.number_input("Initial Deposit Amount (₹)*", min_value=0.0, step=100.0)
+        initial_deposit = st.number_input("Initial Deposit Amount (₹)*", min_value=0.0, step=100.0, format="%.2f")
         
-        submitted = st.form_submit_button("Create Account")
+        submitted = st.form_submit_button("🚀 Create Account")
         
-        if submitted:
-            if not name or not phone or not email or not pin:
-                st.error("Please fill all required fields (*).")
-            elif pin != pin2:
-                st.error("PINs do not match.")
-            elif len(pin) < 4:
-                st.error("PIN must be 4 digits.")
-            elif acc_type.startswith("Savings") and initial_deposit < 100:
-                st.error("Savings account requires a minimum deposit of ₹100.")
+    # Process outside the form so elements don't get trapped if form clears
+    if submitted:
+        if not name or not phone or not email or not pin:
+            st.error("⚠️ Please fill all required fields marked with an asterisk (*).")
+        elif pin != pin2:
+            st.error("⚠️ PINs do not match. Please try again.")
+        elif not pin.isdigit() or len(pin) != 4:
+            st.error("⚠️ PIN must be exactly 4 digits.")
+        elif acc_type.startswith("Savings") and initial_deposit < 100:
+            st.error("⚠️ Savings account requires a minimum deposit of ₹100.")
+        else:
+            customer = Customer(name, phone, email, address)
+            
+            if acc_type.startswith("Savings"):
+                account = SavingsAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
             else:
-                customer = Customer(name, phone, email, address)
+                account = CurrentAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
+
+            account_data = account.to_dict()
+            account_data["customer"] = customer.to_dict()
+
+            accounts = load_accounts()
+            accounts.append(account_data)
+            save_accounts(accounts)
+
+            txn = Transaction(
+                account_number=account.account_number,
+                transaction_type=TransactionType.OPENING_DEPOSIT,
+                amount=initial_deposit,
+                balance_after=initial_deposit,
+                description="Account opening deposit"
+            )
+            transactions = load_transactions()
+            transactions.append(txn.to_dict())
+            save_transactions(transactions)
+            
+            # Show big success metrics!
+            st.balloons()
+            st.toast('Account Created Successfully!', icon='🎉')
+            
+            st.success("🎉 **Congratulations! Your account is ready.**")
+            
+            success_container = st.container(border=True)
+            with success_container:
+                st.markdown(f"<h3 style='text-align: center; color: #4CAF50;'>Account Number: {account.account_number}</h3>", unsafe_allow_html=True)
+                st.markdown("<p style='text-align: center;'><i>Please save this number and your PIN in a secure location. You will need them for all transactions.</i></p>", unsafe_allow_html=True)
                 
-                if acc_type.startswith("Savings"):
-                    account = SavingsAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
-                else:
-                    account = CurrentAccount(customer_id=customer.name, initial_deposit=initial_deposit, pin=pin)
-
-                account_data = account.to_dict()
-                account_data["customer"] = customer.to_dict()
-
-                accounts = load_accounts()
-                accounts.append(account_data)
-                save_accounts(accounts)
-
-                txn = Transaction(
-                    account_number=account.account_number,
-                    transaction_type=TransactionType.OPENING_DEPOSIT,
-                    amount=initial_deposit,
-                    balance_after=initial_deposit,
-                    description="Account opening deposit"
-                )
-                transactions = load_transactions()
-                transactions.append(txn.to_dict())
-                save_transactions(transactions)
-                
-                st.success("✅ Account Created Successfully!")
-                st.info(f"**Your Account Number is:** `{account.account_number}`\nPlease save this number!")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Name", customer.name)
+                c2.metric("Account Type", "Savings" if acc_type.startswith("Savings") else "Current")
+                c3.metric("Initial Balance", f"₹{initial_deposit:,.2f}")
 
 # --- CHECK BALANCE ---
-elif menu == "Check Balance":
+elif menu_choice == "Check Balance":
     st.subheader("💳 Check Balance")
     
     acc_num = st.text_input("Account Number")
@@ -220,7 +243,7 @@ elif menu == "Check Balance":
             st.error("❌ Invalid Account Number or PIN.")
 
 # --- DEPOSIT ---
-elif menu == "Deposit":
+elif menu_choice == "Deposit":
     st.subheader("📥 Deposit Money")
     
     acc_num = st.text_input("Account Number")
@@ -249,7 +272,7 @@ elif menu == "Deposit":
             st.error("❌ Invalid Account Number or PIN.")
 
 # --- WITHDRAW ---
-elif menu == "Withdraw":
+elif menu_choice == "Withdraw":
     st.subheader("📤 Withdraw Money")
     
     acc_num = st.text_input("Account Number")
@@ -282,7 +305,7 @@ elif menu == "Withdraw":
             st.error("❌ Invalid Account Number or PIN.")
 
 # --- TRANSFER FUNDS ---
-elif menu == "Transfer Funds":
+elif menu_choice == "Transfer Funds":
     st.subheader("🔄 Transfer Funds")
     
     st.write("**Sender Details**")
@@ -332,7 +355,7 @@ elif menu == "Transfer Funds":
                     st.success(f"✅ Transfer Successful! Your New Balance: ₹{new_sender_bal:,.2f}")
 
 # --- TRANSACTION HISTORY ---
-elif menu == "Transaction History":
+elif menu_choice == "Transaction History":
     st.subheader("📜 Transaction History")
     
     acc_num = st.text_input("Account Number")
@@ -369,7 +392,7 @@ elif menu == "Transaction History":
             st.error("❌ Invalid Account Number or PIN.")
 
 # --- ADMIN CONTROLS ---
-elif menu == "Admin Controls":
+elif menu_choice == "Admin Controls":
     st.subheader("⚙️ Admin Controls")
     
     admin_pin = st.text_input("Enter Admin Password", type="password")
