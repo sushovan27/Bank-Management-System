@@ -1,0 +1,30 @@
+[
+    {
+        "account_number": "79b97724",
+        "customer_id": "Sushovan Halder",
+        "balance": 27000.0,
+        "is_active": true,
+        "opening_date": "2026-06-19 22:45:02",
+        "account_type": "SavingsAccount",
+        "customer": {
+            "name": "Sushovan Halder",
+            "phone": "6289217587",
+            "email": "sushovanhalderofficial@gmail.com",
+            "address": "Kolkata"
+        }
+    },
+    {
+        "account_number": "5a7076d3",
+        "customer_id": "Rana Halder",
+        "balance": 1000.0,
+        "is_active": true,
+        "opening_date": "2026-06-19 23:17:35",
+        "account_type": "SavingsAccount",
+        "customer": {
+            "name": "Rana Halder",
+            "phone": "1234567890",
+            "email": "helloworld@gmail.com",
+            "address": ""
+        }
+    }
+]
