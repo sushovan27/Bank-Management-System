@@ -66,12 +66,77 @@ menu = st.sidebar.radio("Go to:", [
 
 # --- HOME ---
 if menu == "Home":
-    st.subheader("Welcome to NextGen Banking Web Portal!")
-    st.info("Use the sidebar to navigate through the banking features.")
+    st.markdown("## Welcome to the Future of Banking 🚀")
+    st.markdown("Manage your finances seamlessly with **NextGen Banking System**. Explore the global dashboard below.")
+    st.divider()
     
-    # Display some stats
     accounts = load_accounts()
-    st.metric("Total Active Accounts", len(accounts))
+    transactions = load_transactions()
+    
+    # Calculate Metrics
+    total_accounts = len(accounts)
+    total_balance = sum(acc.get('balance', 0) for acc in accounts)
+    total_transactions = len(transactions)
+    savings_count = sum(1 for a in accounts if a.get("account_type") == "SavingsAccount")
+    current_count = total_accounts - savings_count
+    
+    # Dashboard Metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Active Accounts", total_accounts, delta="Growing 📈" if total_accounts > 0 else None)
+    with col2:
+        st.metric("Total Bank Assets", f"₹{total_balance:,.2f}")
+    with col3:
+        st.metric("Total Transactions", total_transactions)
+    with col4:
+        avg_bal = total_balance / total_accounts if total_accounts > 0 else 0
+        st.metric("Avg Account Balance", f"₹{avg_bal:,.2f}")
+        
+    st.divider()
+    
+    # Charts Section
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        st.subheader("📊 Account Distribution")
+        if total_accounts > 0:
+            # Create a simple dataframe for the bar chart
+            acc_df = pd.DataFrame({
+                "Account Type": ["Savings", "Current"],
+                "Count": [savings_count, current_count]
+            })
+            st.bar_chart(acc_df.set_index("Account Type"), color="#00ff00")
+        else:
+            st.info("No accounts available to display data.")
+            
+    with col_chart2:
+        st.subheader("📈 Transaction Volume")
+        if total_transactions > 0:
+            txn_df = pd.DataFrame(transactions)
+            txn_counts = txn_df['transaction_type'].value_counts().reset_index()
+            txn_counts.columns = ['Transaction Type', 'Count']
+            st.bar_chart(txn_counts.set_index("Transaction Type"), color="#00ffff")
+        else:
+            st.info("No transactions available yet.")
+            
+    st.divider()
+    
+    # Recent Activity Log
+    st.subheader("🔔 Recent System Activity")
+    if total_transactions > 0:
+        # Get the 5 most recent transactions
+        recent_txns = sorted(transactions, key=lambda x: x['timestamp'], reverse=True)[:5]
+        for t in recent_txns:
+            # Determine color and symbol based on transaction nature
+            is_positive = t['transaction_type'] in ['deposit', 'opening_deposit', 'transfer_received', 'interest']
+            color = "green" if is_positive else "red"
+            symbol = "+" if is_positive else "-"
+            
+            # Format text
+            txn_type_formatted = t['transaction_type'].replace('_', ' ').title()
+            st.markdown(f"**{t['timestamp']}** | Account `{t['account_number']}`: {txn_type_formatted} | :{color}[{symbol}₹{t['amount']:,.2f}]")
+    else:
+        st.write("No recent activity.")
 
 # --- CREATE ACCOUNT ---
 elif menu == "Create Account":
